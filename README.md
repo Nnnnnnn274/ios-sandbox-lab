@@ -37,7 +37,20 @@ Compare baseline and comparison:
 python3 tools/ipsw_manifest.py diff baseline.ipsw comparison.ipsw --device-class D47AP --json reports/manifest-diff.json
 ```
 
-The tool reads only `BuildManifest.plist` from the IPSW ZIP container. It does not unpack firmware payloads, disassemble code, modify a device, or assess exploitability.
+The tool can also compare extracted `BuildManifest.plist` files directly. This is useful when the full IPSWs are too large to upload or share:
+
+```sh
+python3 tools/ipsw_manifest.py diff baseline/BuildManifest.plist comparison/BuildManifest.plist --device-class D47AP --json reports/manifest-diff.json
+```
+
+Extract the manifest from each IPSW without unpacking the firmware payloads:
+
+```sh
+unzip -p baseline.ipsw BuildManifest.plist > baseline-BuildManifest.plist
+unzip -p comparison.ipsw BuildManifest.plist > comparison-BuildManifest.plist
+```
+
+Share the two small plist files or the generated JSON report for review. A plist-only report records the manifest file hash; an IPSW-based report also calculates the full IPSW SHA-256. The tool does not unpack firmware payloads, disassemble code, modify a device, or assess exploitability.
 
 ## Public lead under investigation\n\nApple documents a WebKit Process Model Web Content sandbox escape fixed in iOS 27.2: [CVE-2026-113897 research note](docs/CVE-2026-113897.md). This is a public advisory, not a vulnerability independently discovered or reproduced by this repository.\n\n## Research protocol
 
