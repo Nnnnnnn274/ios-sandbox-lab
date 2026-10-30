@@ -47,7 +47,7 @@ def inspect(path: Path, device_class: str) -> dict[str, Any]:
     manifest, manifest_hash, source_kind = load_manifest(path)
     identities = [
         item for item in manifest.get("BuildIdentities", [])
-        if item.get("Info", {}).get("DeviceClass") == device_class
+        if str(item.get("Info", {}).get("DeviceClass", "")).casefold() == device_class.casefold()
     ]
     if not identities:
         known = sorted({
