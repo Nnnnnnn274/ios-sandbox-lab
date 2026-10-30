@@ -48,6 +48,24 @@ The 27.2 iPhone 16 restore image is listed as approximately 12.88 GB. A third-pa
 
 This is a catalogue-reported checksum, not a hash calculated by this project. It must be verified against the downloaded file before being treated as an observed artifact.
 
+## Firmware acquisition / patch-diff checkpoint (2026-10-30)
+
+Resolved the exact Apple CDN download targets via the iPhone17,3 firmware catalogue:
+
+- Baseline IPSW: https://updates.cdn-apple.com/2026FallFCS/38dca0ee-bb5d-4132-ad13-62d57bcd6d32/iPhone17%2C3_27.0.1_24A446_Restore.ipsw
+- Comparison IPSW: https://updates.cdn-apple.com/2026FallFCS/c6c0afa0-c002-45b9-ad4c-d2db3bfa30ac/iPhone17%2C3_27.2_24B119_Restore.ipsw
+- Catalogue-reported baseline SHA-256: `fc87bb9da8c03d0154d87531950f4a170195f6663ee5208653fa7a26bafb9469`
+- Catalogue-reported comparison SHA-256: `62158ad39a22fca5620deeb407cf367cab1775cf1c2fbbdf627321383af78f8b`
+- Catalogue-reported sizes: 11.50 GB and 12.00 GB respectively.
+
+The download links resolve to Apple's `updates.cdn-apple.com` host. The web retrieval interface rejects the binary IPSW content type, and the execution environment has no outbound DNS/network access. Consequently, this run could not download the multi-gigabyte archives, extract their manifests, or compute local hashes. The SHA-256 values above are third-party catalogue claims, not locally verified checksums.
+
+Upstream source trace:
+- Bugzilla issue 328129 and its REST endpoint could not be retrieved.
+- Searches of WebKit/WebKit GitHub code and commit metadata for `328129`, `WebKit Bugzilla 328129`, and related terms returned no matching commit.
+- Searches by credited researcher names also returned no matching WebKit commit.
+- No source patch, changed file, function, or binary diff has been established. Do not treat unrelated commits in the same date range as evidence.
+
 ## Evidence ledger
 
 No IPSW files have yet been supplied or inspected by this project. Therefore no locally calculated firmware hashes, manifest contents, component-level binary differences, or independent vulnerability findings are recorded.
