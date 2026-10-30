@@ -39,7 +39,7 @@ python3 tools/ipsw_manifest.py diff baseline.ipsw comparison.ipsw --device-class
 
 The tool reads only `BuildManifest.plist` from the IPSW ZIP container. It does not unpack firmware payloads, disassemble code, modify a device, or assess exploitability.
 
-## Research protocol
+## Public lead under investigation\n\nApple documents a WebKit Process Model Web Content sandbox escape fixed in iOS 27.2: [CVE-2026-113897 research note](docs/CVE-2026-113897.md). This is a public advisory, not a vulnerability independently discovered or reproduced by this repository.\n\n## Research protocol
 
 1. Record source URLs, retrieval date, file size, and SHA-256 for each IPSW.
 2. Verify product version, build version, and matching device class in each manifest.
