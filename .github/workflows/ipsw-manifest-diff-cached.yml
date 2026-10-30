@@ -1,0 +1,98 @@
+name: Compare cached iPhone 16 IPSW manifests
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: iphone16-cached-manifest-diff
+  cancel-in-progress: false
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Check out research tooling
+        uses: actions/checkout@v4
+
+      - name: Restore iOS 27.0.1 manifest cache
+        id: baseline-cache
+        uses: actions/cache@v4
+        with:
+          path: baseline-BuildManifest.plist
+          key: ios27.0.1-24A446-iphone17,3-buildmanifest-v1
+
+      - name: Download and verify baseline IPSW (cache miss only)
+        if: steps.baseline-cache.outputs.cache-hit != 'true'
+        env:
+          IPSW_URL: https://updates.cdn-apple.com/2026FallFCS/38dca0ee-bb5d-4132-ad13-62d57bcd6d32/iPhone17%2C3_27.0.1_24A446_Restore.ipsw
+          EXPECTED_SHA256: fc87bb9da8c03d0154d87531950f4a170195f6663ee5208653fa7a26bafb9469
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 4 --retry-delay 10 --output baseline.ipsw "$IPSW_URL"
+          echo "$EXPECTED_SHA256  baseline.ipsw" | sha256sum --check
+          unzip -p baseline.ipsw BuildManifest.plist > baseline-BuildManifest.plist
+          test -s baseline-BuildManifest.plist
+          rm -f baseline.ipsw
+
+      - name: Restore iOS 27.2 manifest cache
+        id: comparison-cache
+        uses: actions/cache@v4
+        with:
+          path: comparison-BuildManifest.plist
+          key: ios27.2-24B119-iphone17,3-buildmanifest-v1
+
+      - name: Download and verify comparison IPSW (cache miss only)
+        if: steps.comparison-cache.outputs.cache-hit != 'true'
+        env:
+          IPSW_URL: https://updates.cdn-apple.com/2026FallFCS/c6c0afa0-c002-45b9-ad4c-d2db3bfa30ac/iPhone17%2C3_27.2_24B119_Restore.ipsw
+          EXPECTED_SHA256: 62158ad39a22fca5620deeb407cf367cab1775cf1c2fbbdf627321383af78f8b
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 4 --retry-delay 10 --output comparison.ipsw "$IPSW_URL"
+          echo "$EXPECTED_SHA256  comparison.ipsw" | sha256sum --check
+          unzip -p comparison.ipsw BuildManifest.plist > comparison-BuildManifest.plist
+          test -s comparison-BuildManifest.plist
+          rm -f comparison.ipsw
+
+      - name: Compare D47AP build manifests
+        run: |
+          mkdir -p reports
+          python3 tools/ipsw_manifest.py inspect baseline-BuildManifest.plist --device-class D47AP --json reports/baseline-inspect.json
+          python3 tools/ipsw_manifest.py inspect comparison-BuildManifest.plist --device-class D47AP --json reports/comparison-inspect.json
+          python3 tools/ipsw_manifest.py diff baseline-BuildManifest.plist comparison-BuildManifest.plist --device-class D47AP --json reports/manifest-diff.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path("reports/manifest-diff.json").read_text())
+          summary = {
+              "baseline": report["baseline"],
+              "comparison": report["comparison"],
+              "component_summary": {
+                  "baseline_count": report["components"]["baseline_count"],
+                  "comparison_count": report["components"]["comparison_count"],
+                  "added": report["components"]["added"],
+                  "removed": report["components"]["removed"],
+                  "changed_count": len(report["components"]["changed"]),
+                  "unchanged_count": report["components"]["unchanged_count"],
+              },
+              "interpretation": report["interpretation"],
+          }
+          Path("reports/summary.json").write_text(json.dumps(summary, indent=2) + "\\n")
+          print(json.dumps(summary, indent=2))
+          PY
+
+      - name: Upload manifests and comparison reports
+        if: always() && hashFiles('baseline-BuildManifest.plist', 'comparison-BuildManifest.plist') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: iphone16-ios27-manifest-comparison
+          path: |
+            baseline-BuildManifest.plist
+            comparison-BuildManifest.plist
+            reports/
+          if-no-files-found: warn
+          retention-days: 14
