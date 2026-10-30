@@ -1,64 +1,62 @@
 # iOS Sandbox Lab
 
-Read-only iOS firmware research for **iPhone 16 (iPhone17,3 / A18)**.
+Read-only iOS firmware research for **iPhone 16 (ProductType `iPhone17,3`, A18)**.
 
 ## Scope
 
-This repository starts with IPSW metadata inspection and BuildManifest comparison. It is intended for reproducible defensive research and vulnerability triage.
+The project begins with reproducible IPSW metadata inspection and BuildManifest comparison for defensive security research. It does **not** contain a jailbreak, sandbox escape, privilege-escalation payload, persistence mechanism, or device-modification workflow.
 
-It does **not** contain a jailbreak, sandbox escape, privilege-escalation payload, persistence mechanism, or device-modification workflow. A firmware difference is only a lead; it is not proof of a vulnerability.
+A manifest difference is a lead for further review, not proof of a vulnerability or an exploitable patch.
 
-## Firmware comparison target
+## Comparison target
 
-| Role | iOS version | Build |
+| Role | iOS | Build |
 |---|---:|---:|
 | Baseline | 27.0.1 | 24A446 |
 | Comparison | 27.2 | 24B119 |
 
-Verify that downloaded IPSWs actually match the target product and builds before drawing conclusions. Firmware availability and signing status can change.
+The CLI defaults to BuildManifest `Info.DeviceClass=D47AP`, which is distinct from the marketing ProductType `iPhone17,3`. Verify the identity in both manifests before interpreting a report. Firmware build identifiers and signing status should be independently verified against trusted sources at research time.
 
 ## Requirements
 
 - Python 3.10+
-- Two IPSW files obtained from a trusted source
+- IPSW files from a trusted source
 - No third-party Python packages
 
-## Usage
+## Commands
 
-Inspect one IPSW:
-
-```sh
-python3 tools/ipsw_manifest.py inspect path/to/firmware.ipsw --product iPhone17,3
-```
-
-Compare two IPSW manifests:
+Inspect an IPSW:
 
 ```sh
-python3 tools/ipsw_manifest.py diff baseline.ipsw comparison.ipsw --product iPhone17,3
+python3 tools/ipsw_manifest.py inspect path/to/file.ipsw --device-class D47AP
 ```
 
-Write machine-readable output:
+Compare baseline and comparison:
 
 ```sh
-python3 tools/ipsw_manifest.py diff baseline.ipsw comparison.ipsw --product iPhone17,3 --json report.json
+python3 tools/ipsw_manifest.py diff baseline.ipsw comparison.ipsw --device-class D47AP --json reports/manifest-diff.json
 ```
 
-The tool reads ZIP members directly and does not extract or flash firmware. It reports manifest metadata and component-path/digest changes; it does not disassemble binaries or establish exploitability.
+The tool reads only `BuildManifest.plist` from the IPSW ZIP container. It does not unpack firmware payloads, disassemble code, modify a device, or assess exploitability.
 
-## Safety and handling
+## Research protocol
 
-- Work on copies of firmware and preserve original hashes.
-- Do not flash research firmware onto a daily-use device.
-- Do not run unknown payloads or exploit code on personal devices.
-- Keep any suspected issue in a controlled, non-production test environment.
-- Follow Apple's current Security Research Device and vulnerability disclosure guidance when applicable.
+1. Record source URLs, retrieval date, file size, and SHA-256 for each IPSW.
+2. Verify product version, build version, and matching device class in each manifest.
+3. Review changed component paths and digests; prioritize changes supported by public security notes or independently reproduced observations.
+4. Keep a research log with exact commands and evidence. Do not label a change as a security fix without evidence.
+5. If a vulnerability is validated, follow Apple's current coordinated disclosure process.
 
-## Project status
+## Safety
 
-- [x] Read-only IPSW BuildManifest inspector
-- [x] BuildManifest comparison
-- [ ] Verify the supplied firmware files and record their SHA-256 hashes
-- [ ] Triage relevant component changes using static analysis
-- [ ] Document and responsibly report any validated security issue
+Use a separate test device or isolated analysis environment. Do not flash experimental firmware onto a daily-use phone or run untrusted payloads.
 
-No vulnerability or exploit is currently claimed.
+## Status
+
+- [x] Read-only manifest inspector and comparator
+- [ ] Verify firmware files and record hashes
+- [ ] Triage component changes with static analysis
+- [ ] Validate any suspected issue safely
+- [ ] Responsible disclosure, if warranted
+
+**No vulnerability or exploit is currently claimed.**
