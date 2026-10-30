@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.DS_Store
+*.ipsw
+*.dmg
+*.img4
+*.im4p
+reports/
