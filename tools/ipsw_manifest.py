@@ -17,6 +17,14 @@ def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
 def load_manifest(path: Path) -> tuple[dict[str, Any], str, str]:
     if not path.is_file():
         raise FileNotFoundError(path)
@@ -71,7 +79,7 @@ def inspect(path: Path, device_class: str) -> dict[str, Any]:
         "source": str(path),
         "source_kind": source_kind,
         "source_size": path.stat().st_size if source_kind == "ipsw" else None,
-        "source_sha256": sha256_bytes(path.read_bytes()) if source_kind == "manifest" else None,
+        "source_sha256": sha256_file(path) if source_kind == "ipsw" else sha256_bytes(path.read_bytes()),
         "manifest_sha256": manifest_hash,
         "product_version": manifest.get("ProductVersion"),
         "product_build_version": manifest.get("ProductBuildVersion"),
