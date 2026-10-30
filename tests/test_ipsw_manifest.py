@@ -7,8 +7,8 @@ from pathlib import Path
 from tools.ipsw_manifest import diff, inspect
 
 
-def make_ipsw(path: Path, build: str, digest: bytes) -> None:
-    manifest = {
+def sample_manifest(build: str, digest: bytes) -> dict:
+    return {
         "ProductVersion": "27.0.1",
         "ProductBuildVersion": build,
         "BuildIdentities": [{
@@ -22,8 +22,11 @@ def make_ipsw(path: Path, build: str, digest: bytes) -> None:
             },
         }],
     }
+
+
+def make_ipsw(path: Path, build: str, digest: bytes) -> None:
     with zipfile.ZipFile(path, "w") as archive:
-        archive.writestr("BuildManifest.plist", plistlib.dumps(manifest))
+        archive.writestr("BuildManifest.plist", plistlib.dumps(sample_manifest(build, digest)))
 
 
 class ManifestToolTests(unittest.TestCase):
@@ -34,6 +37,7 @@ class ManifestToolTests(unittest.TestCase):
             result = inspect(path, "D47AP")
             self.assertEqual(result["product_build_version"], "TEST1")
             self.assertIn("0:KernelCache", result["components"])
+            self.assertEqual(result["source_kind"], "ipsw")
 
     def test_diff_reports_digest_change(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -43,6 +47,16 @@ class ManifestToolTests(unittest.TestCase):
             make_ipsw(second, "TEST2", b"two")
             result = diff(inspect(first, "D47AP"), inspect(second, "D47AP"))
             self.assertEqual(len(result["components"]["changed"]), 1)
+
+    def test_inspect_accepts_extracted_manifest_without_full_ipsw(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "BuildManifest.plist"
+            path.write_bytes(plistlib.dumps(sample_manifest("TEST1", b"one")))
+            result = inspect(path, "D47AP")
+            self.assertEqual(result["source_kind"], "manifest")
+            self.assertIsNone(result["source_size"])
+            self.assertIsNotNone(result["source_sha256"])
+            self.assertEqual(result["product_build_version"], "TEST1")
 
     def test_wrong_device_class_fails(self):
         with tempfile.TemporaryDirectory() as directory:
