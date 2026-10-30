@@ -13,29 +13,30 @@ from typing import Any
 MANIFEST = "BuildManifest.plist"
 
 
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for block in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
 
 
-def load_manifest(path: Path) -> tuple[dict[str, Any], str]:
+def load_manifest(path: Path) -> tuple[dict[str, Any], str, str]:
     if not path.is_file():
         raise FileNotFoundError(path)
-    with zipfile.ZipFile(path) as archive:
-        if MANIFEST not in archive.namelist():
-            raise ValueError(f"{path}: {MANIFEST} is missing at archive root")
-        raw = archive.read(MANIFEST)
+    if path.suffix.lower() == ".plist":
+        raw = path.read_bytes()
+        source_kind = "manifest"
+    else:
+        with zipfile.ZipFile(path) as archive:
+            if MANIFEST not in archive.namelist():
+                raise ValueError(f"{path}: {MANIFEST} is missing at archive root")
+            raw = archive.read(MANIFEST)
+        source_kind = "ipsw"
     data = plistlib.loads(raw)
     if not isinstance(data, dict):
         raise ValueError(f"{path}: manifest root is not a dictionary")
-    return data, hashlib.sha256(raw).hexdigest()
+    return data, sha256_bytes(raw), source_kind
 
 
 def inspect(path: Path, device_class: str) -> dict[str, Any]:
-    manifest, manifest_hash = load_manifest(path)
+    manifest, manifest_hash, source_kind = load_manifest(path)
     identities = [
         item for item in manifest.get("BuildIdentities", [])
         if item.get("Info", {}).get("DeviceClass") == device_class
@@ -67,9 +68,10 @@ def inspect(path: Path, device_class: str) -> dict[str, Any]:
             }
 
     return {
-        "ipsw": str(path),
-        "ipsw_size": path.stat().st_size,
-        "ipsw_sha256": sha256_file(path),
+        "source": str(path),
+        "source_kind": source_kind,
+        "source_size": path.stat().st_size if source_kind == "ipsw" else None,
+        "source_sha256": sha256_bytes(path.read_bytes()) if source_kind == "manifest" else None,
         "manifest_sha256": manifest_hash,
         "product_version": manifest.get("ProductVersion"),
         "product_build_version": manifest.get("ProductBuildVersion"),
@@ -108,9 +110,9 @@ def diff(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="mode", required=True)
-    one = commands.add_parser("inspect", help="inspect one IPSW")
-    one.add_argument("ipsw", type=Path)
-    two = commands.add_parser("diff", help="compare two IPSWs")
+    one = commands.add_parser("inspect", help="inspect one IPSW or extracted BuildManifest.plist")
+    one.add_argument("input", type=Path)
+    two = commands.add_parser("diff", help="compare two IPSWs or extracted BuildManifest.plist files")
     two.add_argument("baseline", type=Path)
     two.add_argument("comparison", type=Path)
     for command in (one, two):
@@ -121,7 +123,7 @@ def main() -> int:
 
     try:
         if args.mode == "inspect":
-            report = inspect(args.ipsw, args.device_class)
+            report = inspect(args.input, args.device_class)
         else:
             report = diff(
                 inspect(args.baseline, args.device_class),
