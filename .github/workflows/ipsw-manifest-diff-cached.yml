@@ -63,6 +63,19 @@ jobs:
           mkdir -p reports
           python3 tools/ipsw_manifest.py inspect baseline-BuildManifest.plist --device-class D47AP --json reports/baseline-inspect.json
           python3 tools/ipsw_manifest.py inspect comparison-BuildManifest.plist --device-class D47AP --json reports/comparison-inspect.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          expected = {
+              "baseline": ("27.0.1", "24A446"),
+              "comparison": ("27.2", "24B119"),
+          }
+          for label, (version, build) in expected.items():
+              report = json.loads(Path(f"reports/{label}-inspect.json").read_text())
+              actual = (report.get("product_version"), report.get("product_build_version"))
+              if actual != (version, build) or report.get("device_class") != "D47AP":
+                  raise SystemExit(f"{label} manifest identity mismatch: {actual}, device={report.get('device_class')}")
+          PY
           python3 tools/ipsw_manifest.py diff baseline-BuildManifest.plist comparison-BuildManifest.plist --device-class D47AP --json reports/manifest-diff.json
           python3 - <<'PY'
           import json
