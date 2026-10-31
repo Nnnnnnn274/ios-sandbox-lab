@@ -37,7 +37,7 @@ class ManifestToolTests(unittest.TestCase):
             make_ipsw(path, "TEST1")
             result = inspect(path, "D47AP")
             self.assertEqual(result["product_build_version"], "TEST1")
-            self.assertIn("0:KernelCache", result["components"])
+            self.assertIn("D47AP|Customer Upgrade Install|||#0:KernelCache", result["components"])
             self.assertEqual(result["source_kind"], "ipsw")
             self.assertEqual(len(result["source_sha256"]), 64)
             self.assertEqual(result["identities"][0]["device_class"], "D47AP")
