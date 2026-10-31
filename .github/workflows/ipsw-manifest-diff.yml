@@ -1,6 +1,8 @@
 name: Extract and compare iPhone 16 IPSW manifests
 
 on:
+  push:
+    branches: [research/harden-manifest-lab]
   workflow_dispatch:
 
 permissions:
