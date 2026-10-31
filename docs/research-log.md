@@ -49,7 +49,7 @@ These SHA-256 values are third-party catalogue claims, not values calculated by 
 
 ## Acquisition limitation checkpoint (2026-10-30)
 
-The previous research run could not download the multi-gigabyte IPSWs in its execution environment. No local archive hash, extracted manifest, or component comparison was produced. The GitHub Actions workflows are intended to perform the download and verification in GitHub-hosted runners; they have not yet been run successfully.
+The previous research run could not download the multi-gigabyte IPSWs in its execution environment. No local archive hash, extracted manifest, or component comparison was produced. The opt-in firmware acquisition job in `.github/workflows/tests.yml` downloads both archives on a GitHub-hosted runner, verifies the recorded catalogue hashes, records actual file hashes/sizes/timestamps, extracts manifests, and compares the target builds. A run is being requested from this branch; no successful acquisition is claimed until its artifact is available.
 
 ## Evidence ledger
 
