@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 MANIFEST = "BuildManifest.plist"
+MAX_MANIFEST_SIZE = 64 * 1024 * 1024
 CHUNK_SIZE = 1024 * 1024
 
 
@@ -31,6 +32,9 @@ def _read_manifest(path: Path) -> tuple[bytes, str]:
     if not path.is_file():
         raise FileNotFoundError(path)
     if path.suffix.lower() == ".plist":
+        size = path.stat().st_size
+        if size > MAX_MANIFEST_SIZE:
+            raise ValueError(f"{path}: manifest exceeds the 64 MiB safety limit")
         return path.read_bytes(), "manifest"
 
     try:
@@ -40,7 +44,7 @@ def _read_manifest(path: Path) -> tuple[bytes, str]:
                 raise ValueError(
                     f"{path}: expected exactly one {MANIFEST} at archive root; found {len(matches)}"
                 )
-            if matches[0].file_size > 64 * 1024 * 1024:
+            if matches[0].file_size > MAX_MANIFEST_SIZE:
                 raise ValueError(f"{path}: {MANIFEST} exceeds the 64 MiB safety limit")
             return archive.read(matches[0]), "ipsw"
     except zipfile.BadZipFile as exc:
