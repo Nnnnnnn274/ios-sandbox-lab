@@ -106,7 +106,14 @@ def inspect(path: Path, device_class: str) -> dict[str, Any]:
             "ap_board_id": info.get("ApBoardID"),
             "ap_chip_id": info.get("ApChipID"),
         })
-        stable_identity = "|".join(str(info.get(field) or "") for field in (\n            "DeviceClass", "Variant", "RestoreBehavior", "ApBoardID", "ApChipID"\n        ))\n        duplicate_number = identity_key_counts.get(stable_identity, 0)\n        identity_key_counts[stable_identity] = duplicate_number + 1\n        stable_identity = f"{stable_identity}#{duplicate_number}"\n        for component, entry in identity["Manifest"].items():
+        stable_identity = "|".join(
+            str(info.get(field) or "")
+            for field in ("DeviceClass", "Variant", "RestoreBehavior", "ApBoardID", "ApChipID")
+        )
+        duplicate_number = identity_key_counts.get(stable_identity, 0)
+        identity_key_counts[stable_identity] = duplicate_number + 1
+        stable_identity = f"{stable_identity}#{duplicate_number}"
+        for component, entry in identity["Manifest"].items():
             if not isinstance(entry, dict):
                 raise ValueError(
                     f"{path}: identity {identity_index} component {component!r} must be a dictionary"
