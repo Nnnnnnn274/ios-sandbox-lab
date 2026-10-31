@@ -107,6 +107,14 @@ class ManifestToolTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "invalid BuildManifest plist"):
                 load_manifest(path)
 
+    def test_oversized_extracted_manifest_is_rejected_before_read(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "BuildManifest.plist"
+            with path.open("wb") as stream:
+                stream.truncate(64 * 1024 * 1024 + 1)
+            with self.assertRaisesRegex(ValueError, "64 MiB safety limit"):
+                load_manifest(path)
+
     def test_diff_rejects_different_device_classes(self):
         with tempfile.TemporaryDirectory() as directory:
             first = Path(directory) / "first.ipsw"
