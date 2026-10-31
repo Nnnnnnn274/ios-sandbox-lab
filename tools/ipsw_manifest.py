@@ -97,6 +97,7 @@ def inspect(path: Path, device_class: str) -> dict[str, Any]:
 
     components: dict[str, Any] = {}
     identity_records: list[dict[str, Any]] = []
+    identity_key_counts: dict[str, int] = {}
     for identity_index, identity, info in identities:
         identity_records.append({
             "index": identity_index,
