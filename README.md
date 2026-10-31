@@ -1,75 +1,81 @@
 # iOS Sandbox Lab
 
-Read-only iOS firmware research for **iPhone 16 (ProductType `iPhone17,3`, A18)**.
+Read-only iOS firmware metadata research for **iPhone 16** (ProductType `iPhone17,3`, board configuration `D47AP`, A18).
 
-## Scope
+## Scope and safety
 
-The project begins with reproducible IPSW metadata inspection and BuildManifest comparison for defensive security research. It does **not** contain a jailbreak, sandbox escape, privilege-escalation payload, persistence mechanism, or device-modification workflow.
+This project inspects IPSW `BuildManifest.plist` metadata and compares component records. It does not implement a jailbreak, sandbox escape, privilege escalation, persistence, device modification, or exploit payload. Manifest changes are triage leads—not proof of a security fix or exploitability.
 
-A manifest difference is a lead for further review, not proof of a vulnerability or an exploitable patch.
-
-## Comparison target
+## Current comparison target
 
 | Role | iOS | Build |
 |---|---:|---:|
 | Baseline | 27.0.1 | 24A446 |
 | Comparison | 27.2 | 24B119 |
 
-The CLI defaults to BuildManifest `Info.DeviceClass=D47AP`, which is distinct from the marketing ProductType `iPhone17,3`. Verify the identity in both manifests before interpreting a report. Firmware build identifiers and signing status should be independently verified against trusted sources at research time.
+Verify the version, build, product and device class from each downloaded manifest before interpreting results. `D47AP` is a BuildManifest DeviceClass, not the marketing ProductType.
 
 ## Requirements
 
 - Python 3.10+
-- IPSW files from a trusted source
+- IPSW files from Apple's CDN (download URLs are recorded in `docs/research-log.md`)
 - No third-party Python packages
 
 ## Commands
 
-Inspect an IPSW:
+Inspect an IPSW or extracted plist:
 
 ```sh
 python3 tools/ipsw_manifest.py inspect path/to/file.ipsw --device-class D47AP
 ```
 
-Compare baseline and comparison:
+Compare two inputs:
 
 ```sh
 python3 tools/ipsw_manifest.py diff baseline.ipsw comparison.ipsw --device-class D47AP --json reports/manifest-diff.json
 ```
 
-The tool can also compare extracted `BuildManifest.plist` files directly. This is useful when the full IPSWs are too large to upload or share:
-
-```sh
-python3 tools/ipsw_manifest.py diff baseline/BuildManifest.plist comparison/BuildManifest.plist --device-class D47AP --json reports/manifest-diff.json
-```
-
-Extract the manifest from each IPSW without unpacking the firmware payloads:
+For smaller uploads, extract only the manifests:
 
 ```sh
 unzip -p baseline.ipsw BuildManifest.plist > baseline-BuildManifest.plist
 unzip -p comparison.ipsw BuildManifest.plist > comparison-BuildManifest.plist
+python3 tools/ipsw_manifest.py diff baseline-BuildManifest.plist comparison-BuildManifest.plist --device-class D47AP --json reports/manifest-diff.json
 ```
 
-Share the two small plist files or the generated JSON report for review. A plist-only report records the manifest file hash; an IPSW-based report also calculates the full IPSW SHA-256. The tool does not unpack firmware payloads, disassemble code, modify a device, or assess exploitability.
+The inspector hashes the complete IPSW when given an archive and hashes the manifest when given a standalone plist. It validates the archive, manifest structure, selected BuildIdentity and component digest types. It does not unpack firmware payloads or assess exploitability.
 
-## Public lead under investigation\n\nApple documents a WebKit Process Model Web Content sandbox escape fixed in iOS 27.2: [CVE-2026-113897 research note](docs/CVE-2026-113897.md). This is a public advisory, not a vulnerability independently discovered or reproduced by this repository.\n\n## Research protocol
+## Research lead: CVE-2026-112690
 
-1. Record source URLs, retrieval date, file size, and SHA-256 for each IPSW.
-2. Verify product version, build version, and matching device class in each manifest.
-3. Review changed component paths and digests; prioritize changes supported by public security notes or independently reproduced observations.
-4. Keep a research log with exact commands and evidence. Do not label a change as a security fix without evidence.
-5. If a vulnerability is validated, follow Apple's current coordinated disclosure process.
+Apple's iOS 27.2 advisory lists **CVE-2026-112690** under App Store and describes a possible remote WebContent sandbox escape, addressed with improved input validation. See [the research note](docs/CVE-2026-112690.md) and [Apple's iOS 27.2 security advisory](https://support.apple.com/en-us/149230).
 
-## Safety
+**Correction:** CVE-2026-113897 / Bugzilla 328129 is listed in Apple's macOS Golden Gate advisory, not the iOS 27.2 advisory. It must not be represented as the iPhone 16 iOS lead. The historical note at `docs/CVE-2026-113897.md` records this correction.
 
-Use a separate test device or isolated analysis environment. Do not flash experimental firmware onto a daily-use phone or run untrusted payloads.
+## Workflows
+
+- `Extract and compare iPhone 16 IPSW manifests`: downloads both IPSWs, checks catalogue-provided SHA-256 values, extracts manifests, validates the expected release identity, compares and uploads reports.
+- `Compare cached iPhone 16 IPSW manifests`: same analysis with cached extracted manifests.
+
+The expected hashes in the workflows are third-party catalogue claims, not Apple-signed checksums. A successful match verifies the downloaded bytes against those recorded values; it does not establish the provenance or correctness of the catalogue entry. Review and update them against independently trusted records before relying on them.
+
+## Research protocol
+
+1. Record source URL, retrieval time, exact filename, byte size and locally calculated SHA-256.
+2. Verify ProductVersion, ProductBuildVersion, ProductName and matching DeviceClass in both manifests.
+3. Compare component paths and digests; retain the raw manifests and JSON reports.
+4. Correlate observations with Apple advisories and independently verifiable upstream evidence.
+5. Never call a manifest difference a security patch without corroboration.
+6. Keep exploit reproduction out of scope; if a vulnerability is independently validated, follow Apple's coordinated disclosure process.
+
+See [architecture](docs/analysis-architecture.md), [evidence ledger](docs/evidence-ledger.md), and [research log](docs/research-log.md).
 
 ## Status
 
 - [x] Read-only manifest inspector and comparator
-- [ ] Verify firmware files and record hashes
+- [x] Parser validation and regression tests
+- [ ] Verify firmware files and record hashes locally
 - [ ] Triage component changes with static analysis
-- [ ] Validate any suspected issue safely
+- [ ] Correlate public advisory with independently verifiable code/binary evidence
 - [ ] Responsible disclosure, if warranted
 
-**No vulnerability or exploit is currently claimed.**
+**No vulnerability has been independently reproduced or claimed by this repository.**

@@ -1,0 +1,102 @@
+name: Python tests
+
+on:
+  push:
+    branches: ["main", "research/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run standard-library test suite
+        run: python -m unittest discover -s tests -v
+
+  firmware-compare:
+    if: contains(github.event.head_commit.message, '[firmware]') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check disk space
+        run: |
+          df -h .
+          available_kb=$(df -Pk . | awk 'NR==2 {print $4}')
+          if [ "$available_kb" -lt 13000000 ]; then
+            echo "::error::Less than 13 GB free; refusing firmware download."
+            exit 1
+          fi
+      - name: Download, verify and extract baseline firmware
+        env:
+          IPSW_URL: https://updates.cdn-apple.com/2026FallFCS/38dca0ee-bb5d-4132-ad13-62d57bcd6d32/iPhone17%2C3_27.0.1_24A446_Restore.ipsw
+          EXPECTED_SHA256: fc87bb9da8c03d0154d87531950f4a170195f6663ee5208653fa7a26bafb9469
+        run: |
+          set -euo pipefail
+          mkdir -p reports
+          curl --fail --location --retry 4 --retry-delay 10 --output baseline.ipsw "$IPSW_URL"
+          echo "$EXPECTED_SHA256  baseline.ipsw" | sha256sum --check
+          ACTUAL_SHA256=$(sha256sum baseline.ipsw | awk '{print $1}')
+          SIZE_BYTES=$(stat -c%s baseline.ipsw)
+          RETRIEVED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          ACTUAL_SHA256="$ACTUAL_SHA256" SIZE_BYTES="$SIZE_BYTES" RETRIEVED_AT="$RETRIEVED_AT" python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          record = {"label":"baseline","url":os.environ["IPSW_URL"],"filename":"baseline.ipsw","expected_sha256":os.environ["EXPECTED_SHA256"],"verified_sha256":os.environ["ACTUAL_SHA256"],"size_bytes":int(os.environ["SIZE_BYTES"]),"retrieved_at_utc":os.environ["RETRIEVED_AT"],"checksum_provenance":"third-party catalogue value; not an Apple-published checksum"}
+          Path("reports/baseline-acquisition.json").write_text(json.dumps(record, indent=2) + "\n")
+          PY
+          unzip -p baseline.ipsw BuildManifest.plist > baseline-BuildManifest.plist
+          test -s baseline-BuildManifest.plist
+          rm baseline.ipsw
+      - name: Download, verify and extract comparison firmware
+        env:
+          IPSW_URL: https://updates.cdn-apple.com/2026FallFCS/c6c0afa0-c002-45b9-ad4c-d2db3bfa30ac/iPhone17%2C3_27.2_24B119_Restore.ipsw
+          EXPECTED_SHA256: 62158ad39a22fca5620deeb407cf367cab1775cf1c2fbbdf627321383af78f8b
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 4 --retry-delay 10 --output comparison.ipsw "$IPSW_URL"
+          echo "$EXPECTED_SHA256  comparison.ipsw" | sha256sum --check
+          ACTUAL_SHA256=$(sha256sum comparison.ipsw | awk '{print $1}')
+          SIZE_BYTES=$(stat -c%s comparison.ipsw)
+          RETRIEVED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          ACTUAL_SHA256="$ACTUAL_SHA256" SIZE_BYTES="$SIZE_BYTES" RETRIEVED_AT="$RETRIEVED_AT" python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          record = {"label":"comparison","url":os.environ["IPSW_URL"],"filename":"comparison.ipsw","expected_sha256":os.environ["EXPECTED_SHA256"],"verified_sha256":os.environ["ACTUAL_SHA256"],"size_bytes":int(os.environ["SIZE_BYTES"]),"retrieved_at_utc":os.environ["RETRIEVED_AT"],"checksum_provenance":"third-party catalogue value; not an Apple-published checksum"}
+          Path("reports/comparison-acquisition.json").write_text(json.dumps(record, indent=2) + "\n")
+          PY
+          unzip -p comparison.ipsw BuildManifest.plist > comparison-BuildManifest.plist
+          test -s comparison-BuildManifest.plist
+          rm comparison.ipsw
+      - name: Inspect and compare exact target builds
+        run: |
+          python tools/ipsw_manifest.py inspect baseline-BuildManifest.plist --device-class D47AP --json reports/baseline-inspect.json
+          python tools/ipsw_manifest.py inspect comparison-BuildManifest.plist --device-class D47AP --json reports/comparison-inspect.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          expected = {"baseline": ("27.0.1", "24A446"), "comparison": ("27.2", "24B119")}
+          for label, pair in expected.items():
+              data = json.loads(Path(f"reports/{label}-inspect.json").read_text())
+              actual = (data.get("product_version"), data.get("product_build_version"))
+              if actual != pair or data.get("device_class") != "D47AP":
+                  raise SystemExit(f"{label} identity mismatch: {actual}, {data.get('device_class')}")
+          PY
+          python tools/ipsw_manifest.py diff baseline-BuildManifest.plist comparison-BuildManifest.plist --device-class D47AP --json reports/manifest-diff.json
+      - name: Upload firmware evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: iphone16-ios27-firmware-evidence
+          path: |
+            baseline-BuildManifest.plist
+            comparison-BuildManifest.plist
+            reports/
+          if-no-files-found: error
+          retention-days: 14
